@@ -1,0 +1,288 @@
+﻿(function () {
+
+    $(function () {
+        var controls = $(".archived-subpages-modal-holder");
+        for (var i = 0; i < controls.length; i++) {
+            initArchivedSubPagesControl(controls[i]);
+        }
+    });
+
+    function initArchivedSubPagesControl(control) {
+        var popup = $(control).find(".archived-subpages-modal-holder-popup");
+        control.popup = popup;
+        control.showPopup = showDialog;
+    }
+
+
+    function showDialog() {
+        var popup = this.popup;
+        $("html").addClass("CMS_PF_dialog_open");
+        popup.dialog({
+            width: 640,
+            modal: true,
+            resizable: false,
+            draggable: false,
+            dialogClass: "CMS_PF_dialog CMS_scrollingDialog CMS_modal-archivedsubpages", //"CMS_modal CMS_modal-archivedsubpages add-archived-subpages-modal-popup-dialog",
+            hide: 'fade',
+            show: 'fade',
+            closeText: "X",
+            position: {
+                my: "center",
+                at: "top",
+                of: window
+            },
+            close: function () {
+                $("html").removeClass("CMS_PF_dialog_open");
+            }
+        });
+
+        LoadPageList(popup);
+
+        var restoreAllBtn = $(popup).find(".btn_restore_archived_subpages");
+        var deleteAllBtn = $(popup).find(".btn_delete_archived_subpages");
+
+        //$(restoreAllBtn).on("click", RestoreAllButtonClicked);
+        //$(deleteAllBtn).on("click", DeleteAllButtonClicked);
+
+        $(restoreAllBtn).unbind().click(function () { RestoreAllButtonClicked(popup); return false;});
+        $(deleteAllBtn).unbind().click(function () { DeleteAllButtonClicked(popup); return false;});
+
+        enableDisableButton(restoreAllBtn, false);
+        enableDisableButton(deleteAllBtn, false);
+
+        $(popup).find(".CMS_dialogClose").unbind().on("click", closePopup);
+        $(popup).find(".CMS_modal_close").unbind().on("click", closePopup);
+    }
+
+
+    function closePopup() {
+        var popup = $(this).closest(".archived-subpages-modal-holder-popup");
+        clearOldMsg(popup); // todo
+        popup.dialog("close");
+        return false;
+    }
+
+    function LoadPageList(popup) {
+        var args = {
+            containerId: $(popup).find(".archived_subpages_CMS_hdObject input[type=hidden]").val()
+        };
+
+        $.ajax({
+            type: "POST",
+            url: "/WebServices/CmsPortalService.asmx/GetArchivedChildPages",
+            data: JSON.stringify(args),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (result) {
+                var pages = result.d.Result;
+                var table = $(popup).find(".archived_subpage_list tbody");
+                showPageList(table, pages);
+            }
+        });
+    };
+
+    function showPageList(table, pages) {
+        $(table).find("tr").remove();
+
+        for (var i = 0; i < pages.length; i++) {
+            var page = pages[i];
+            var tr = $("<tr>").addClass("page_archived_sub_row");
+            tr.attr("PageId", page.PageId);
+
+
+            //td1
+            var td1 = $("<td>").append(
+                $("<label>").addClass("CMS_checkbox CMS_cb_noText")
+                    .append($("<input>").addClass("CMS_input checkbox_archived_subpage").attr("type", "checkbox").attr("value", page.PageId).on("click", checkBoxClicked))
+                    .append($("<span>").append($("<em>").addClass("fa").attr("aria-hidden", "true")))
+            );
+
+            //td2
+            var td2 = $("<td>").html(page.PageName);
+
+            //td3
+            var td3 = $("<td>").addClass("CMS_tButton CMS_tDouble");
+
+            var a1 = $("<a>").addClass("CMS_button CMS_bPreview").attr("href", "#").attr("title", "Preview");
+            a1.append($("<em>").addClass("fa fa-eye"));
+            a1.on("click", function (e) {
+                PreviewButtonClicked(e.target);
+                return false;
+            });
+
+            var a2 = $("<a>").addClass("CMS_button CMS_bSquare CMS_bCancel").attr("href", "#").attr("title", "Delete");
+            a2.append($("<em>").addClass("fa fa-trash"));
+            a2.on("click", function (e) {
+                DeleteOneButtonClicked(e.target);
+                return false;
+            });
+
+            td3.append(a1);
+            td3.append(" ");
+            td3.append(a2);
+
+            tr.append(td1);
+            tr.append(td2);
+            tr.append(td3);
+
+            $(table).append(tr);
+        }
+    };
+
+    function RestoreAllButtonClicked(popup) {
+        var idList = getSelectedIdList(popup);
+
+        if (idList.length == 0)
+            return;
+
+        var args = {
+            containerId: $(popup).find(".archived_subpages_CMS_hdObject input[type=hidden]").val(),
+            unArchivingPageIds: idList
+        };
+
+        $.ajax({
+            type: "POST",
+            url: "/WebServices/CmsPortalService.asmx/UnArchivedPages",
+            data: JSON.stringify(args),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (result) {
+                if (result.d.IsSuccessful) {
+                    LoadPageList(popup);
+                    if (result.d.Notices.length > 0)
+                        showErrors(popup, result.d.Notices);
+                } else {
+                    showErrors(popup, result.d.Errors);
+                }
+            }
+        });
+        return false;
+    };
+
+    function DeleteAllButtonClicked(popup) {
+        var idList = getSelectedIdList(popup);
+        if (idList.length == 0)
+            return;
+
+        var args = {
+            containerId: $(popup).find(".archived_subpages_CMS_hdObject input[type=hidden]").val(),
+            deletingPageIds: idList
+        };
+        delete_confirm(popup, args);
+    };
+
+    function DeleteOneButtonClicked(button) {
+        var popup = $(button).closest(".archived-subpages-modal-holder-popup");
+        var idList = [];
+        idList[0] = $(button).closest(".page_archived_sub_row").attr("PageId");
+
+        var args = {
+            containerId: $(popup).find(".archived_subpages_CMS_hdObject input[type=hidden]").val(),
+            deletingPageIds: idList
+        };
+        delete_confirm(popup, args);
+    };
+
+    function PreviewButtonClicked(button) {
+        var popup = $(button).closest(".archived-subpages-modal-holder-popup");
+        var portalId = $(popup).find(".archived_subpages_CMS_hdPortalId input[type=hidden]").val();
+        var pageId = $(button).closest(".page_archived_sub_row").attr("PageId");
+        var targetUrl = "/cms/One.aspx?pageId=" + pageId + "&portalId=" + portalId;
+        window.open(targetUrl, "_blank");
+    };
+
+    function callDeleteService(args, popup) {
+        $.ajax({
+            type: "POST",
+            url: "/WebServices/CmsPortalService.asmx/DeleteArchivedPages",
+            data: JSON.stringify(args),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (result) {
+                if (result.d.IsSuccessful) {
+                    LoadPageList(popup);
+                    if (result.d.Notices.length > 0)
+                        showErrors(popup, result.d.Notices);
+                } else {
+                    showErrors(popup, result.d.Errors);
+                }
+            }
+        });
+    };
+
+    function getSelectedIdList(popup) {
+        var val = [];
+        $(popup).find(".archived_subpage_list tbody").find(".checkbox_archived_subpage:checked").each(function (i) {
+            val[i] = $(this).val();
+        });
+        return val;
+    };
+
+    function showErrors(popup, errors) {
+        var errorsRow = popup.find(".CMS_archived_subpages_error");
+        errorsRow.html("");
+        for (var i = 0; i < errors.length; i++) {
+            var singleError = $("<div>").addClass("CMS_inlineAlerts CMS_error");
+            singleError.append(errors[i]);
+            errorsRow.append(singleError);
+        }
+
+        if (errors.length > 0) {
+            errorsRow.show();
+        }
+    };
+
+
+    function delete_confirm(popup, args) {
+        $.confirm({
+            title: 'Are you sure you want to delete?',
+            content: "<p>Once again, this deletion is permanent! If you need to recover this data, there will be a cost.</p>",
+            theme: 'supervan',
+            draggable: false,
+            animation: 'top',
+            animateFromElement: false,
+            buttons: {
+                delete: {
+                    text: 'Delete',
+                    btnClass: 'CMS_button CMS_bCancel',
+                    action: function () { delete_confirmed_button_clicked(popup, args); }
+
+                },
+                cancel: {
+                    text: 'Cancel',
+                    btnClass: 'CMS_button CMS_bAction'
+                }
+            }
+        });
+    };
+
+    function delete_confirmed_button_clicked(popup, args) {
+        clearOldMsg(popup);
+        callDeleteService(args, popup);
+    };
+
+    function clearOldMsg(popup) {
+        $(popup).find(".CMS_archived_subpages_error").html("").hide();
+    };
+
+    function enableDisableButton(button, enable)
+    {
+        if (enable)
+            button.removeClass("CMS_bDisabled");
+        else
+            button.addClass("CMS_bDisabled")
+    };
+
+    function checkBoxClicked() {
+        var popup = $(this).closest(".archived-subpages-modal-holder-popup");
+        var idList = getSelectedIdList(popup);
+        var enable = idList.length > 0;
+
+        var restoreAllBtn = $(popup).find(".btn_restore_archived_subpages");
+        var deleteAllBtn = $(popup).find(".btn_delete_archived_subpages");
+
+        enableDisableButton(restoreAllBtn, enable);
+        enableDisableButton(deleteAllBtn, enable);
+    };
+
+})();

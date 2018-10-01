@@ -1,0 +1,33 @@
+$(document).ready(function() {
+	/* Assign Roles */
+	$('.telerik_main_menu ul.rmRootGroup').attr('role', 'menubar');
+	$('.telerik_main_menu ul.rmGroup').attr('role', 'menu');
+	$('.telerik_main_menu li.rmItem').attr('role', 'presentation');
+	$('.telerik_main_menu li.rmItem a.rmLink').attr('role', 'menuitem');
+	
+	/* Indicate Submenus */
+	var subMenuLinks = $('.telerik_main_menu li.rmItem').has('.rmSlide').children('a.rmLink');
+	
+	$(subMenuLinks).attr('aria-haspopup', 'true');
+	$('.telerik_main_menu ul.rmGroup').attr({
+		'aria-expanded': 'false',
+		'aria-hidden': 'true'
+	});
+	
+	$(subMenuLinks).attrchange({
+		trackValues: true,
+		callback: function(event) {
+			if (event.attributeName == "class") {
+				if (event.newValue.search(/rmExpanded/i) > 0) {
+					$(this).siblings('div.rmSlide').children('ul.rmGroup').removeAttr( "aria-hidden" );
+					$(this).siblings('div.rmSlide').children('ul.rmGroup').attr('aria-expanded', 'true');
+				} else {
+					$(this).siblings('div.rmSlide').children('ul.rmGroup').attr({
+						'aria-expanded': 'false',
+						'aria-hidden': 'true'
+					});
+				}
+			}
+		}
+	})
+});

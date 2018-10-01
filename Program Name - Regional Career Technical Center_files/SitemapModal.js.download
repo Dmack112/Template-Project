@@ -1,0 +1,68 @@
+﻿(function () {
+    $(function () {
+        var holders = $(".sitemap-modal-holder");
+        for (var i = 0; i < holders.length; i++) {
+            initSitemapModal(holders[i]);
+        }
+    });
+
+    function initSitemapModal(holder) {
+        var popup = $(holder).find(".sitemap-modal-popup");
+        holder.popup = popup;
+
+        setupCopyAndPreviewButtons(popup);
+        setupCloseButtons(popup);
+
+        holder.showPopup = function () {
+
+            $("html").addClass("CMS_PF_dialog_open");
+
+            popup.dialog({
+                width: 640,
+                modal: true,
+                resizable: false,
+                draggable: false,
+                dialogClass: "CMS_PF_dialog CMS_centerDialog sitemap-modal-popup-dialog",
+                hide: 'fade',
+                show: 'fade'
+            });
+        };
+    }
+
+    function setupCopyAndPreviewButtons(popup) {
+        var urlBox = popup.find(".sitemap-modal-url-textbox");
+
+        var copyButton = popup.find(".sitemap-modal-copy");
+        copyButton.click(function () {
+            urlBox[0].select();
+            document.execCommand("copy");
+            return false;
+        });
+
+        var previewButton = popup.find(".sitemap-modal-preview");
+        previewButton.click(function () {
+            var url = urlBox.val();
+            window.open(url, "_blank");
+            return false;
+        });
+    }
+
+    function setupCloseButtons(popup) {
+        var cancelButton = popup.find(".sitemap-modal-close");
+        cancelButton.click(function () {
+            closePopup(popup);
+            return false;
+        });
+
+        var closeButton = popup.find(".CMS_dialogClose");
+        closeButton.click(function () {
+            closePopup(popup);
+            return false;
+        });
+    }
+
+    function closePopup(popup) {
+        popup.dialog("close");
+        $("html").removeClass("CMS_PF_dialog_open");
+    }
+})();

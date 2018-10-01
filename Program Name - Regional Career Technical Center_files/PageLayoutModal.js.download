@@ -1,0 +1,190 @@
+﻿(function () {
+
+	$(function () {
+		var controls = $(".page-layout-modal-holder");
+		for (var i = 0; i < controls.length; i++) {
+			initPageLayoutControl(controls[i]);
+		}
+	});
+
+	function initPageLayoutControl(control) {
+		var popup = $(control).find(".page-layout-modal-popup");
+		control.popup = popup;
+		
+		initControls(popup);
+		
+        control.showPopup = function (objectId) {
+			popup.find(".page_layout_CMS_hdObject input[type=hidden]").val(objectId);
+			showDialog(popup);
+		};
+	}
+
+	function initControls(popup) {
+		popup.find(".CMS_inlineAlerts").hide();
+		var radioLayout = popup.find('input[name=pageLayout]');
+
+		// radio buttons list event
+		radioLayout.click(function () {
+			var divCustom = popup.find('#divCustomLayout');
+			switch (this.value) {
+				case 'custom':
+					divCustom.show();
+					break;
+				default:
+					divCustom.hide();
+					break;
+			}
+		});
+
+		// Validate button event 
+		popup.find('.CMS_bGo').click(function () {
+			validateHtmlClick(popup);
+			return false;
+		});
+
+		// submit button event
+		popup.find('.CMS_bSubmit').click(function () {
+			submitClick(popup);
+			return false;
+		});
+
+		// cancel button event
+		popup.find('.CMS_bCancel').click(function () {
+			popup.dialog("close");
+			return false;
+		});
+	}
+
+	function submitClick(popup) {
+
+		var selectedVal;
+		var selected = popup.find("input[type='radio']:checked");
+		if (selected.length > 0) {
+			selectedVal = selected.val();
+		}
+		
+		var args = {
+			objectId: parseInt(popup.find(".page_layout_CMS_hdObject input[type=hidden]").val()),
+			pageStyle: selectedVal,
+			template: popup.find("#txtTemplate").val()
+		};
+
+		$.ajax({
+			type: "POST",
+			url: "/WebServices/CmsPortalService.asmx/UpdatePageLayout",
+			data: JSON.stringify(args),
+			contentType: "application/json; charset=utf-8",
+			dataType: "json",
+			success: function (e) {
+				result = e.d;
+
+				if (result == "success") {
+					popup.dialog("close");
+					location.reload(true);
+				}
+				else {
+					popup.find(".CMS_inlineAlerts").show();
+					popup.find(".CMS_inlineAlerts").text(result);
+				}
+			},
+			error: function (e) {
+			}
+		});
+	}
+
+	function validateHtmlClick(popup) {
+		var args = {
+			template: popup.find("#txtTemplate").val()
+		};
+		
+		$.ajax({
+			type: "POST",
+			url: "/WebServices/CmsPortalService.asmx/PageTemplateValidation",
+			data: JSON.stringify(args),
+			contentType: "application/json; charset=utf-8",
+			dataType: "json",
+			success: function (e) {
+				result = e.d;
+				if (result == "success") {
+					//popup.find(".CMS_inlineAlerts").hide();
+					popup.find(".CMS_inlineAlerts").show();
+					popup.find(".CMS_inlineAlerts").text(result);
+				}
+				else {
+					popup.find(".CMS_inlineAlerts").show();
+					popup.find(".CMS_inlineAlerts").text(result);
+				}
+			},
+			error: function (e) {
+			}
+		});
+	}
+
+    function showDialog(popup) {
+
+        $("html").addClass("CMS_PF_dialog_open");
+
+		popup.dialog({
+			width: 900,
+			modal: true,
+			title: "Edit Layout",
+			resizable: false,
+			draggable: false,
+			dialogClass: "CMS_PF_dialog CMS_centerDialog CMS_modal-pageLayout add-page-layout-modal-popup-dialog",
+			//closeText: "X",
+			open: function (event, ui) {
+				//loadPage(popup);
+				loadPageInfo(popup);
+			},
+			close: function () {
+				resetPopup(popup);
+			}
+		});
+	}
+	
+	function resetPopup(popup) {
+		popup.find("#txtTemplate").val('');
+		popup.find('#divCustomLayout').hide();
+		popup.find(".CMS_inlineAlerts").hide();
+        popup.find('input[name=pageLayout]').removeProp("checked");
+        $("html").removeClass("CMS_PF_dialog_open");
+	}
+
+	function loadPageInfo(popup) {
+		var args = {
+			objectId: parseInt(popup.find(".page_layout_CMS_hdObject input[type=hidden]").val())
+		};
+
+		$.ajax({
+			type: "POST",
+			url: "/WebServices/CmsPortalService.asmx/GetPageLayoutInfo",
+			data: JSON.stringify(args),
+			contentType: "application/json; charset=utf-8",
+			dataType: "json",
+			success: function (e) {
+				var result = e.d;
+				var divCustom = popup.find('#divCustomLayout');
+
+				if (result[0] == "success") {
+					popup.find('input[name=pageLayout]').each(function () {
+						if ($(this).val() == result[1])
+							$(this).prop("checked", true);
+						else
+							$(this).removeProp("checked");
+					});
+					
+					if (result[1] == "custom") {
+						divCustom.show();
+					}
+					else {
+						divCustom.hide();
+					}
+					popup.find("#txtTemplate").val(result[2]);
+				}
+			},
+			error: function (e) {
+			}
+		});
+	}
+
+}) ();

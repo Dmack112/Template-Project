@@ -1,0 +1,107 @@
+﻿(function () {
+    $(function () {
+        var controls = $(".save-as-page-type-modal-holder");
+        for (var i = 0; i < controls.length; i++) {
+            initSaveAsPageTypeControl(controls[i]);
+        }
+    });
+
+    function initSaveAsPageTypeControl(control) {
+        var popup = $(control).find(".save-as-page-type-modal-popup");
+        control.popup = popup;
+
+        setupSaveAndCancelButtons(popup);
+
+        control.showPopup = function () {
+
+            $("html").addClass("CMS_PF_dialog_open");
+
+            popup.dialog({
+                width: 640,
+                modal: true,
+                resizable: false,
+                draggable: false,
+                dialogClass: "CMS_PF_dialog CMS_centerDialog save-as-page-type-modal-popup-dialog",
+                hide: 'fade',
+                show: 'fade',
+                close: function () {
+                    resetPopup(popup);
+                }
+            });
+        };
+    }
+
+    function setupSaveAndCancelButtons(popup) {
+        var saveButton = popup.find(".save-as-page-type-save");
+        saveButton.click(function () {
+            submitSaveAsPageType(popup);
+            return false;
+        });
+
+        var cancelButton = popup.find(".save-as-page-type-cancel");
+        cancelButton.click(function () {
+            cancelSaveAsPageType(popup);
+            return false;
+        });
+
+        var closeButton = popup.find(".CMS_dialogClose");
+        closeButton.click(function () {
+            cancelSaveAsPageType(popup);
+            return false;
+        });
+    }
+
+    function showErrors(popup, errors) {
+        var errorsRow = popup.find(".CMS_inlineAlerts.CMS_error");
+
+        errorsRow.html("");
+        for (var i = 0; i < errors.length; i++) {
+            if (i > 0) {
+                errorsRow.append("<br/>");
+            }
+            errorsRow.append(errors[i]);
+        }
+
+        if (errors.length > 0) {
+            errorsRow.slideDown();
+        }
+    }
+
+    function submitSaveAsPageType(popup) {
+        var errorsRow = popup.find(".CMS_inlineAlerts.CMS_error");
+        errorsRow.hide();
+
+        var args = {
+            pageId: popup.find(".save-as-page-type-page-id-row input").val(),
+            newPageType: popup.find(".save-as-page-type-input").val()
+        };
+
+        $.ajax({
+            type: "POST",
+            url: "/WebServices/CmsPortalService.asmx/SaveAsPageType",
+            data: JSON.stringify(args),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (e) {
+                var result = e.d;
+                showErrors(popup, result.Errors);
+                if (result.IsSuccessful) {
+                    location.reload(true);
+                }
+            },
+            error: function (e) {
+                showErrors(popup, ["An unexpected error occured."]);
+            }
+        });
+    }
+
+    function cancelSaveAsPageType(popup) {
+        popup.dialog("close");
+    }
+
+    function resetPopup(popup) {
+        popup.find(".save-as-page-type-input").val("");
+        popup.find(".CMS_inlineAlerts.CMS_error").hide();
+        $("html").removeClass("CMS_PF_dialog_open");
+    }
+})();

@@ -1,0 +1,63 @@
+﻿(function () {
+    $(function () {
+        var holders = $(".cms-iframe-modal-holder");
+        for (var i = 0; i < holders.length; i++) {
+            initIframeModal(holders[i]);
+        }
+    });
+
+    function initIframeModal(holder) {
+        var popup = $(holder).find(".cms-iframe-modal-popup");
+        holder.popup = popup;
+
+        setupAutoFrameHeight(popup);
+        setupCloseButton(popup);
+
+        holder.showPopup = function (url, shouldReloadOnClose) {
+            var frame = popup.find("iframe");
+            frame.attr("src", url);
+            frame.on("load", function () {
+                if (frame.attr("src") != "about:blank") {
+                    popup.find(".CMS_loadingSpinner").fadeOut();
+                }
+            });
+
+            $("html").addClass("CMS_PF_dialog_open");
+
+            popup.dialog({
+                width: 800,
+                modal: true,
+                resizable: false,
+                draggable: false,
+                position: {
+                    my: "center",
+                    at: "top",
+                    of: window
+                },
+                dialogClass: "CMS_PF_dialog CMS_scrollingDialog cms-iframe-modal-popup-dialog",
+                hide: 'fade',
+                show: 'fade',
+                close: function () {
+                    $("html").removeClass("CMS_PF_dialog_open");
+                    popup.find(".CMS_loadingSpinner").show();
+                    popup.find("iframe").attr("src", "about:blank");
+                    if (shouldReloadOnClose) {
+                        parent.location.reload(true);
+                    }
+                }
+            });
+        };
+    }
+
+    function setupAutoFrameHeight(popup) {
+        popup.find("iframe").iframeHeight();
+    }
+
+    function setupCloseButton(popup) {
+        var closeButton = popup.find(".CMS_dialogClose");
+        closeButton.click(function () {
+            popup.dialog("close");
+            return false;
+        });
+    }
+})();

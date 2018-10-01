@@ -1,0 +1,425 @@
+﻿(function () {
+    $(function () {
+        var holders = $(".page-release-schedule-holder");
+        for (var i = 0; i < holders.length; i++) {
+            initPageReleaseScheduleModal(holders[i]);
+        }
+    });
+
+    function initPageReleaseScheduleModal(holder) {
+        var popup = $(holder).find(".page-release-schedule-popup");
+        holder.popup = popup;
+        holder.showPopup = ShowPopup;
+
+    };
+
+    function ShowPopup() {
+        var popup = this.popup;
+
+        $("html").addClass("CMS_PF_dialog_open");
+
+        popup.dialog({
+            width: 640,
+            modal: true,
+            resizable: false,
+            draggable: false,
+            dialogClass: "CMS_PF_dialog CMS_scrollingDialog",
+            hide: 'fade',
+            show: 'fade',
+            closeText: "X",
+            position: {
+                my: "center",
+                at: "top",
+                of: window
+            },
+            close: function () {
+                $("html").removeClass("CMS_PF_dialog_open");
+            }
+        });
+
+        LoadPageOptionList(popup);
+        LoadPageScheduleList(popup);
+
+        initDatePicker($(popup).find(".add_page_schedule_form_release_on").find(".CMS_input.dateTime"), popup);
+        initDatePicker($(popup).find(".add_page_schedule_form_release_until").find(".CMS_input.dateTime"), popup);
+
+        $(popup).find(".CMS_button_page_schedule_set").on("click", add_button_clicked);
+        $(popup).find(".CMS_dialogClose").on("click", closePopup);
+        $(popup).find(".CMS_modal_close").on("click", closePopup); 
+    };
+
+    function closePopup()
+    {
+        var popup = $(this).closest(".page-release-schedule-popup");
+        clearOldMsg(popup);
+        popup.dialog("close");
+        return false;
+    }
+
+    function initDatePicker(textBox, popup)
+    {
+        var standardDateFormat = $(popup).find(".page_schedule_date_format_row input[type=hidden]").val();
+        var standardTimeFormat = $(popup).find(".page_schedule_time_format_row input[type=hidden]").val();
+
+        $(textBox).datetimepicker({
+            altField: "",
+            altFormat: "yy-mm-dd",          // internal use format, have to match webservice format(hardcoded)
+            altTimeFormat: "hh:mm tt",      // internal use format, have to match webservice format(hardcoded)
+            altFieldTimeOnly: false,
+            controlType: "select",
+            oneLine: true,
+            dateFormat: standardDateFormat,
+            timeFormat: standardTimeFormat,
+            showButtonPanel: true,
+            closeText: "Submit",
+            defaultValue: "",
+            separator: " ",
+            altSeparator: " ",
+            showOtherMonths: true,
+            selectOtherMonths: true,
+            onClose: function (dateText, input) {
+                $(textBox).val(dateText);
+                $(textBox).blur();
+            }
+        });
+    }
+
+    function showErrors(popup, errors, isNew) {
+        var errorsRow = isNew ? popup.find(".CMS_add_page_schedule_error") : popup.find(".CMS_edit_page_schedule_error");
+        errorsRow.html(""); // can be removed, because every button click will clear the old msg
+        for (var i = 0; i < errors.length; i++) { 
+            var singleError = $("<div>").addClass("CMS_inlineAlerts CMS_error");
+            singleError.append(errors[i]);
+            errorsRow.append(singleError);
+        }
+
+        if (errors.length > 0) {
+            errorsRow.show();
+        }
+    }
+    function clearOldMsg(popup)
+    {
+        $(popup).find(".CMS_add_page_schedule_error").html("").hide();
+        $(popup).find(".CMS_edit_page_schedule_error").html("").hide();
+        $(popup).find(".page_schedule_list tbody").find("tr").removeClass("CMS_tHighlight");
+    }
+
+    function ReFreshLists(popup, highLightPageId) {
+        LoadPageOptionList(popup);
+        LoadPageScheduleList(popup, highLightPageId);
+    };
+    function LoadPageOptionList(popup) {
+        var args = {
+            parentId: $(popup).find(".page_schedule_page_id_row input[type=hidden]").val()
+        };
+
+        $.ajax({
+            type: "POST",
+            url: "/WebServices/CmsPortalService.asmx/GetUnArchivedChildPagesWithNoSchedule",
+            data: JSON.stringify(args),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (result) {
+                var pages = result.d.Result;
+                showPageOptionList(popup, pages);
+            }
+        });
+    };
+    function showPageOptionList(popup, pages) {
+        var ddl = $(popup).find(".add_page_schedule_form_page_option select");
+        $(ddl).find("option").remove();
+        ddl.append(new Option("Select a page ...", "-1", true));
+        for (var i = 0; i < pages.length; i++) {
+            var page = pages[i];
+            ddl.append(new Option(page.PageName, page.PageId));
+        }
+    };
+
+    function LoadPageScheduleList(popup, highLightPageId) {
+        var args = {
+            parentId: $(popup).find(".page_schedule_page_id_row input[type=hidden]").val()
+        };
+
+        $.ajax({
+            type: "POST",
+            url: "/WebServices/CmsPortalService.asmx/GetUnArchivedChildPagesWithSchedule",
+            data: JSON.stringify(args),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (result) {
+                var pagesWithSchedule = result.d.Result;
+                var table = $(popup).find(".page_schedule_list tbody");
+                showPageScheduleList(table, pagesWithSchedule, highLightPageId);
+            }
+        });
+    };
+    function showPageScheduleList(table, pagesWithSchedule, highLightPageId) {
+        $(table).find("tr").remove();
+
+        for (var i = 0; i < pagesWithSchedule.length; i++) {
+            var pageSchedule = pagesWithSchedule[i];
+            var tr = $("<tr>").addClass("page_schedule_row");
+            tr.attr("PageId", pageSchedule.PageInfo.PageId);
+
+            if (pageSchedule.PageInfo.PageId == highLightPageId)
+                tr.addClass("CMS_tHighlight");
+
+            //td1
+            var td1 = $("<td>").html(pageSchedule.PageInfo.PageName);
+            //var hf = $("<input>").attr({ type: "hidden", name: "hfPageId", value: pageSchedule.PageInfo.PageId });
+            //td1.append(hf);
+
+            //td2
+            var td2 = $("<td>").addClass("schedule_from_date").html(pageSchedule.ScheduleFromDateLocal);
+
+            //td3
+            var td3 = $("<td>").addClass("schedule_to_date").html(pageSchedule.ScheduleToDateLocal);
+
+            //td4
+            var td4 = $("<td>").addClass("CMS_tButton CMS_tSingle");
+
+            var a1 = $("<a>").addClass("CMS_button CMS_bSquare edit_page_schedule_button").attr("href", "#").attr("title", "Edit");
+            a1.append($("<em>").addClass("fa fa-pencil").attr("aria-hidden", "true"));
+            a1.on("click", function (e) {
+                edit_button_toggle(e.target);
+                return false;
+            });
+
+            var a2 = $("<a>").addClass("CMS_button CMS_bCancel CMS_bSquare CMS_bMarginL delete_cancel_page_schedule_button delete_row").attr("href", "#").attr("title", "Delete");
+            a2.append($("<em>").addClass("fa fa-trash").attr("aria-hidden", "true"));          
+            $(a2).on("click", function (e) {
+                delete_cancel_toggle(e.target);
+                return false;
+            });
+
+            td4.append(a1);
+            td4.append(a2);
+
+            tr.append(td1);
+            tr.append(td2);
+            tr.append(td3);
+            tr.append(td4);
+
+            $(table).append(tr);
+        }
+    };
+
+    function delete_cancel_toggle(target) {
+        var button = $(target).closest('.delete_cancel_page_schedule_button');
+
+        if ($(button).hasClass("cancel_edit_row"))
+            cancel_edit_button_clicked(button);
+        else
+            delete_start_button_clicked(button);
+    }
+    function cancel_edit_button_clicked(cancel_button) {
+        var popup = $(cancel_button).closest(".page-release-schedule-popup");
+        var row = $(cancel_button).closest('.page_schedule_row');
+
+        //clear od msg
+        clearOldMsg(popup);
+
+        //toggle edit_button
+        var edit_button = $(row).find('.edit_page_schedule_button');
+        toggle_button_save_to_edit(edit_button);
+
+        //toggle cancel button to delete button
+        toggle_button_cancel_to_delete(cancel_button);
+
+        //toggle date input to plain text with previous value
+        var scheduleFrom_pre_val = $(row).find(".schedule_from_date input").attr("previousValue");
+        var scheduleTo_pre_val = $(row).find(".schedule_to_date input").attr("previousValue");
+        var scheduleFrom = $(row).find(".schedule_from_date");
+        var scheduleTo = $(row).find(".schedule_to_date");
+        scheduleFrom.html(scheduleFrom_pre_val);
+        scheduleTo.html(scheduleTo_pre_val);
+    }
+
+    function delete_start_button_clicked(button) {
+        $.confirm({
+            title: 'Removing Page from Release Schedule',
+            content: "<p>The current page is bound by a release schedule and is currently only visible during the time you have specified. If you delete this schedule, the page will be immediately visible.</p> <p>If you wish to remove the page from the site, please go to 'Page Options' <em class='fa fa-arrow-right'></em> 'Page Status' and archive the page.</p>",
+            theme: 'supervan',
+            draggable: false,
+            animation: 'top',
+            animateFromElement: false,
+            buttons: {
+                delete: {
+                    text: 'Delete',
+                    btnClass: 'CMS_button CMS_bCancel',
+                    action: function () { delete_confirmed_button_clicked(button); }
+
+                },
+                cancel: {
+                    text: 'Cancel',
+                    btnClass: 'CMS_button CMS_bAction'
+                }
+            }
+        });        
+    }
+    function delete_confirmed_button_clicked(button) {
+        var popup = $(button).closest(".page-release-schedule-popup");
+        clearOldMsg(popup);
+
+        var row = $(button).closest('.page_schedule_row');
+        var pageId_val = $(row).attr("pageId");
+        removePageSchedule(pageId_val, popup);
+    };
+
+    function add_button_clicked() {
+        var popup = $(this).closest(".page-release-schedule-popup");
+        clearOldMsg(popup);
+
+        var pageId = $(popup).find(".add_page_schedule_form_page_option select").val();
+        var releaseOn = formatDateTime($(popup).find(".add_page_schedule_form_release_on input").datepicker("getDate"));
+        var releaseUntil = formatDateTime($(popup).find(".add_page_schedule_form_release_until input").datepicker("getDate"));
+        setPageSchedule(pageId, releaseOn, releaseUntil, true, popup);
+    };
+    function edit_save_clicked(edit_button, row) {
+        var popup = $(edit_button).closest(".page-release-schedule-popup");
+
+        var scheduleFrom_val = formatDateTime($(row).find(".schedule_from_date input").datepicker("getDate"));
+        var scheduleTo_val = formatDateTime($(row).find(".schedule_to_date input").datepicker("getDate"));
+        var pageId_val = $(row).attr("pageId");
+
+        setPageSchedule(pageId_val, scheduleFrom_val, scheduleTo_val, false, popup);
+    }; 
+    function finish_edit(popup, pageId) {
+        var row = $(popup).find(".page_schedule_list tbody").find("tr[pageId=" + pageId + "]");
+
+        //toggle edit_button
+        var edit_button = $(row).find(".edit_page_schedule_button");
+        toggle_button_save_to_edit(edit_button);
+
+        //toggle cancel button to delete button
+        var cancel_button = $(row).find(".delete_cancel_page_schedule_button");
+        toggle_button_cancel_to_delete(cancel_button);
+
+        //toggle date input to plain text with previous value
+        var scheduleFrom_val = $(row).find(".schedule_from_date input").val();
+        var scheduleTo_val = $(row).find(".schedule_to_date input").val();
+        $(row).find(".schedule_from_date input").remove();
+        $(row).find(".schedule_to_date input").remove();
+        $(row).find(".schedule_from_date").html(scheduleFrom_val);
+        $(row).find(".schedule_to_date").html(scheduleTo_val);
+    };
+
+    function start_edit_clicked(edit_button, row, popup) {
+        toggle_button_edit_to_save(edit_button);
+
+        var deleteButton = $(row).find(".delete_cancel_page_schedule_button");
+        toggle_button_delete_to_cancel(deleteButton)
+
+        var scheduleFrom = $(row).find(".schedule_from_date");
+        var scheduleTo = $(row).find(".schedule_to_date");
+
+        var scheduleFrom_data = scheduleFrom.html();
+        var scheduleTo_data = scheduleTo.html();
+
+        var scheduleFromInput = $("<input>").addClass("CMS_input CMS_inputTable").attr({ type: "text", name: "scheduleFromDate", value: scheduleFrom_data, previousValue: scheduleFrom_data, placeholder: "Date/Time" });
+        var scheduleToInput = $("<input>").addClass("CMS_input CMS_inputTable").attr({ type: "text", name: "scheduleToDate", value: scheduleTo_data, previousValue: scheduleTo_data, placeholder: "Date/Time" });
+
+        initDatePicker(scheduleFromInput, popup);
+        initDatePicker(scheduleToInput, popup);
+
+        scheduleFrom.html("");
+        scheduleTo.html("");
+
+        scheduleFrom.append(scheduleFromInput);
+        scheduleTo.append(scheduleToInput);
+    };
+    function edit_button_toggle(button) {
+        var popup = $(button).closest(".page-release-schedule-popup");
+        clearOldMsg(popup);
+
+        var row = $(button).closest('.page_schedule_row');
+
+        var edit_button = $(button).closest('.edit_page_schedule_button');
+
+        if ($(edit_button).hasClass("CMS_bGo"))
+            edit_save_clicked(edit_button, row);
+        else 
+            start_edit_clicked(edit_button, row, popup);
+    };
+
+    function setPageSchedule(pageId, releaseOn, releaseUntil, isNew, popup) {
+
+        var args = {
+            pageId: pageId,
+            fromLocalDateStr: releaseOn,
+            toLocalDateStr: releaseUntil
+        };
+        $.ajax({
+            type: "POST",
+            url: "/WebServices/CmsPortalService.asmx/SetPageReleaseSchedule",
+            data: JSON.stringify(args),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (result) {
+                if (result.d.IsSuccessful) {
+                    if (isNew)
+                        ReFreshLists(popup, pageId);
+                    else
+                        finish_edit(popup, pageId);
+                    
+                } else {
+                    showErrors(popup, result.d.Errors, isNew);
+                }
+            }
+        });
+    };
+    function removePageSchedule(pageId, popup) {
+
+        var args = { pageId: pageId };
+
+        $.ajax({
+            type: "POST",
+            url: "/WebServices/CmsPortalService.asmx/RemovePageReleaseSchedule",
+            data: JSON.stringify(args),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (result) {
+                if (result.d.IsSuccessful) {
+                        ReFreshLists(popup);
+                } else {
+                    showErrors(popup, result.d.Errors, false);
+                }
+            }
+        });
+    };
+
+    function toggle_button_save_to_edit(button)
+    {
+        $(button).removeClass("CMS_bGo");
+        $(button).find("em").removeClass("fa-check").addClass("fa-pencil");
+        $(button).attr("title", "Edit");
+    };
+    function toggle_button_edit_to_save(button)
+    {
+        $(button).addClass("CMS_bGo");
+        $(button).find("em").removeClass("fa-pencil").addClass("fa-check");
+        $(button).attr("title", "Save");
+    };
+
+    function toggle_button_cancel_to_delete(button)
+    {
+        $(button).removeClass("cancel_edit_row").addClass("delete_row");
+        $(button).find("em").removeClass("fa-times").addClass("fa-trash");
+        $(button).attr("title", "Delete");
+    };
+    function toggle_button_delete_to_cancel(button)
+    {
+        $(button).removeClass("delete_row").addClass("cancel_edit_row");
+        $(button).find("em").removeClass("fa-trash").addClass("fa-times");
+        $(button).attr("title", "Cancel");
+    };
+
+    //format dateobject to string with format "yy-mm-dd hh:mm tt"
+    function formatDateTime(dateTimeobject) {
+        if (dateTimeobject) {
+            return $.datepicker.formatDate("yy-mm-dd", dateTimeobject) + " " + $.datepicker.formatTime("hh:mm tt", { hour: dateTimeobject.getHours(), minute: dateTimeobject.getMinutes() }, {});
+        } else {
+            return "";
+        }
+    }
+})();

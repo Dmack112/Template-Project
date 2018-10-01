@@ -1,0 +1,127 @@
+﻿(function () {
+    $(function () {
+        var holders = $(".page-copy-modal-holder");
+        for (var i = 0; i < holders.length; i++) {
+            initPageCopyModal(holders[i]);
+        }
+    });
+
+    function initPageCopyModal(holder) {
+        var popup = $(holder).find(".page-copy-modal-popup");
+        holder.popup = popup;
+
+        setupSaveAndCloseButtons(popup);
+
+        holder.showPopup = function () {
+
+            $("html").addClass("CMS_PF_dialog_open");
+
+            popup.dialog({
+                width: 640,
+                modal: true,
+                resizable: false,
+                draggable: false,
+                dialogClass: "CMS_PF_dialog CMS_centerDialog page-copy-modal-popup-dialog",
+                hide: 'fade',
+                show: 'fade',
+                close: function () {
+                    resetPopup(popup);
+                }
+            });
+        };
+    }
+
+    function convertPageTitle(sourceString, replacementChar) {
+        sourceString = sourceString.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
+        var destinationString = "";
+        for (var i = 0; i < sourceString.length; i++) {
+            var char = sourceString.charAt(i)
+            if (i == 0 || sourceString.charAt(i - 1) == " " || char < 'A' || char > 'Z') {
+                destinationString += char;
+            } else {
+                destinationString += " " + char;
+            }
+        }
+        return destinationString.replace(/[^\w-]/g, replacementChar).toLowerCase();
+    }
+
+    function setupSaveAndCloseButtons(popup) {
+        var saveButton = popup.find(".page-copy-submit");
+        saveButton.click(function () {
+            submitPageCopy(popup);
+            return false;
+        });
+
+        var cancelButton = popup.find(".page-copy-cancel");
+        cancelButton.click(function () {
+            cancelPageCopy(popup);
+            return false;
+        });
+
+        var closeButton = popup.find(".CMS_dialogClose");
+        closeButton.click(function () {
+            cancelPageCopy(popup);
+            return false;
+        });
+    }
+
+    function showErrors(popup, errors) {
+        var errorsRow = popup.find(".CMS_inlineAlerts.CMS_error");
+
+        errorsRow.html("");
+        for (var i = 0; i < errors.length; i++) {
+            if (i > 0) {
+                errorsRow.append("<br/>");
+            }
+            errorsRow.append(errors[i]);
+        }
+
+        if (errors.length > 0) {
+            errorsRow.slideDown();
+        }
+    }
+
+    function submitPageCopy(popup) {
+        popup.find(".CMS_inlineAlerts.CMS_error").hide();
+        var args = {
+            pageId: popup.find(".page-copy-page-id-row input").val(),
+            targetId: popup.find(".page-copy-target-id-row input").val(),
+            newName: popup.find(".page-copy-new-page-name input").val(),
+            newUrl: convertPageTitle(popup.find(".page-copy-new-page-name input").val(), '_'),
+        };
+
+        if (args.targetId == "") {
+            args.targetId = 0;
+        }
+
+        $.ajax({
+            type: "POST",
+            url: "/WebServices/CmsPortalService.asmx/CopyPage",
+            data: JSON.stringify(args),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (e) {
+                var result = e.d;
+                showErrors(popup, result.Errors);
+                if (result.IsSuccessful) {
+                    location.reload(true);
+                }
+            },
+            error: function (e) {
+                showErrors(popup, ["An unexpected error occured."]);
+            }
+        });
+    }
+
+    function cancelPageCopy(popup) {
+        popup.dialog("close");
+    }
+
+    function resetPopup(popup) {
+        popup.find(".page-copy-new-page-name input").val("");
+        popup.find(".page-copy-target input").val("");
+        popup.find(".page-copy-target-id-row input").val("");
+        popup.find(".CMS_inlineAlerts.CMS_error").hide();
+        $("html").removeClass("CMS_PF_dialog_open");
+    }
+})();

@@ -1,0 +1,253 @@
+﻿(function () {
+    var locked = "&#x1F512;";
+    var unlocked = "&#x1F513;";
+    var otherCategory = "Other";
+
+    $(function () {
+        var controls = $(".add-new-page-modal-holder");
+        for (var i = 0; i < controls.length; i++) {
+            initAddNewPageControl(controls[i]);
+        }
+    });
+
+    function initAddNewPageControl(control) {
+        var popup = $(control).find(".add-new-page-modal-popup");
+        control.popup = popup;
+
+        setupTitleToNameConversion(popup);
+        setupOwnerUserLink(popup);
+        setupSubmitAndCloseButtons(popup);
+
+        control.showPopup = function (title, pageType) {
+            popup.find(".add-new-page-modal-form-page-type input[type=hidden]").val(pageType);
+            showDialog(popup, title, pageType);
+        };
+    }
+
+    function setupTitleToNameConversion(popup) {
+        var titleBox = popup.find(".add-new-page-modal-form-title input");
+        var nameBox = popup.find(".add-new-page-modal-form-friendly-url input");
+        var lock = popup.find(".add-new-page-modal-form-friendly-url a")
+        var replacementChar = popup.find(".add-new-page-modal-form-url-replacement input").val();
+        if (replacementChar === null)
+            replacementChar = '_';
+        nameBox.attr("disabled", "disabled");
+        //lock.html(locked);
+
+        lock.click(function () {
+            if (nameBox.attr("disabled")) {
+                //lock.html(unlocked);
+                nameBox.removeAttr("disabled");
+                lock.find("em").removeClass("fa-lock").addClass("fa-unlock");
+            } else {
+                //lock.html(locked);
+                nameBox.attr("disabled", "disabled");
+                lock.find("em").removeClass("fa-unlock").addClass("fa-lock");
+
+                nameBox.val(convertPageTitle(titleBox.val(), replacementChar));
+            }
+            return false;
+        });
+
+        titleBox.on("change keyup paste", function () {
+            if (nameBox.attr("disabled")) {
+                nameBox.val(convertPageTitle(titleBox.val(), replacementChar));
+                nameBox[0].OldValue = nameBox.val(); // Work-around for JS from UtilityJavascript
+            }
+        });
+    }
+
+    function convertPageTitle(sourceString, replacementChar) {
+        sourceString = sourceString.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
+        var destinationString = "";
+        for (var i = 0; i < sourceString.length; i++) {
+            var char = sourceString.charAt(i)
+            if (i == 0 || sourceString.charAt(i - 1) == " " || char < 'A' || char > 'Z') {
+                destinationString += char;
+            } else {
+                destinationString += " " + char;
+            }
+        }
+        return destinationString.replace(/[^\w-]/g, replacementChar).toLowerCase();
+    }
+
+    function setupCategories(popup) {
+        // If there's already categories loaded besides "blank" and "other", skip loading again.
+        if (popup.find(".add-new-page-modal-form-category select option").length > 2) {
+            return;
+        }
+
+        loadCategories(popup);
+        setupCategoriesOtherOption(popup);
+    }
+
+    function loadCategories(popup) {
+        var args = {
+            portalId: popup.find(".add-new-page-modal-form-portal input[type=hidden]").val()
+        };
+
+        $.ajax({
+            type: "POST",
+            url: "/WebServices/CmsPortalService.asmx/GetAvailableCategories",
+            data: JSON.stringify(args),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (result) {
+                var categories = result.d;
+                showCategories(popup, categories);
+            }
+        });
+    }
+
+    function showCategories(popup, categories) {
+        var ddl = popup.find(".add-new-page-modal-form-category select");
+        var last = ddl.find("option:last");
+        for (var i = 0; i < categories.length; i++) {
+            var category = categories[i];
+            last.before(new Option(category, category));
+        }
+    }
+
+    function setupCategoriesOtherOption(popup) {
+        var ddl = popup.find(".add-new-page-modal-form-category select");
+        ddl.change(function () {
+            var otherOptions = popup.find(".add-new-page-modal-form-other-category");
+            if (ddl.val() == otherCategory) {
+                otherOptions.slideDown();
+            } else {
+                otherOptions.slideUp();
+            }
+        });
+    }
+
+    function showDialog(popup, title, pageType) {
+        setupCategories(popup);
+
+        $("html").addClass("CMS_PF_dialog_open");
+
+        popup.dialog({
+            width: 640,
+            modal: true,
+            title: title,
+            resizable: false,
+            draggable: false,
+            dialogClass: "CMS_modal CMS_modal-addPage add-new-page-modal-popup-dialog",
+            closeText: "X",
+            create: function (event, ui) {
+                var titleBar = $(".add-new-page-modal-popup-dialog .ui-dialog-titlebar");
+                titleBar.removeClass("ui-dialog-titlebar ui-widget-header ui-corner-all");
+                titleBar.addClass("CMS_modal-title");
+
+                popup.find(".add-new-page-modal-form-owner a.CMS_modal-inputButton").html("<em class='fa fa-users'/>");
+            },
+            close: function () {
+                resetPopup(popup);
+            }
+        });
+    }
+
+    function setupOwnerUserLink(popup) {
+        var selectedOwnerLink = popup.find("a.add-new-page-modal-selected-owner");
+        selectedOwnerLink.click(function () {
+            var selectedOwnerId = popup.find(".add-new-page-modal-form-owner input[type=hidden]").val();
+            selectedOwnerId = selectedOwnerId.replace(/[\D]/, "");
+            if (selectedOwnerId.length > 0) {
+                var targetUrl = "/workspaces/One.aspx?objectId=" + selectedOwnerId;
+                window.open(targetUrl, "_blank");
+            }
+            return false;
+        });
+    }
+
+    function setupSubmitAndCloseButtons(popup) {
+        var submitButton = popup.find(".add-new-page-modal-submit");
+        submitButton.click(function () {
+            submitNewPage(popup);
+            return false;
+        });
+
+        var cancelButton = popup.find(".add-new-page-modal-cancel");
+        cancelButton.click(function () {
+            cancelNewPage(popup);
+            return false;
+        });
+    }
+
+    function submitNewPage(popup) {
+        popup.find(".add-new-page-modal-popup-errors").hide();
+
+        var selectedCategory = popup.find(".add-new-page-modal-form-category select").val();
+        if (selectedCategory == otherCategory) {
+            selectedCategory = popup.find(".add-new-page-modal-form-other-category input").val();
+        }
+
+        var args = {
+            prettyTitle: popup.find(".add-new-page-modal-form-title input").val(),
+            friendlyUrlName: popup.find(".add-new-page-modal-form-friendly-url input").val(),
+            ownerId: parseInt(popup.find(".add-new-page-modal-form-owner input[type=hidden]").val()) || -1,
+            replacePageOwnerSite: popup.find(".add-new-page-modal-form-owner input[type=checkbox]").is(":checked"),
+            category: selectedCategory || "",
+            portalId: parseInt(popup.find(".add-new-page-modal-form-portal input[type=hidden]").val()),
+            parentId: parseInt(popup.find(".add-new-page-modal-form-parent input[type=hidden]").val()),
+            pageType: popup.find(".add-new-page-modal-form-page-type input[type=hidden]").val()
+        };
+
+        $.ajax({
+            type: "POST",
+            url: "/WebServices/CmsPortalService.asmx/CreatePage",
+            data: JSON.stringify(args),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (e) {
+                var result = e.d;
+                showErrors(popup, result.Errors);
+                if (result.IsSuccessful) {
+                    window.location = result.RedirectUrl;
+                }
+            },
+            error: function (e) {
+                showErrors(popup, ["An unexpected error occured."]);
+            }
+        });
+    }
+
+    function showErrors(popup, errors) {
+        var errorsRow = popup.find(".add-new-page-modal-popup-errors");
+        var errorsList = errorsRow.find("ul");
+
+        errorsList.html("");
+        for (var i = 0; i < errors.length; i++) {
+            errorsList.append("<li>" + errors[i] + "</li>");
+        }
+
+        if (errors.length > 0) {
+            errorsRow.slideDown();
+        }
+    }
+
+    function cancelNewPage(popup) {
+        popup.dialog("close");
+    }
+
+    function resetPopup(popup) {
+        popup.find(".add-new-page-modal-form-title input").val("");
+        popup.find(".add-new-page-modal-form-friendly-url input").val("");
+        popup.find(".add-new-page-modal-form-friendly-url input").attr("disabled", "disabled");
+        popup.find(".add-new-page-modal-form-friendly-url a em").removeClass("fa-unlock").addClass("fa-lock");
+
+        popup.find(".add-new-page-modal-form-owner input[type=checkbox]").attr("checked", false);
+        var defaultOwnerName = popup.find(".add-new-page-modal-form-owner-default .default-owner-name input[type=hidden]").val()
+        popup.find(".add-new-page-modal-selected-owner").text(defaultOwnerName);
+        var defaultOwnerId = popup.find(".add-new-page-modal-form-owner-default .default-owner-id input[type=hidden]").val();
+        popup.find(".add-new-page-modal-form-owner input[type=hidden]").val(defaultOwnerId);
+
+        popup.find(".add-new-page-modal-form-category select").val("");
+        popup.find(".add-new-page-modal-form-other-category input").val("");
+        popup.find(".add-new-page-modal-form-other-category").hide();
+
+        popup.find(".add-new-page-modal-popup-errors").hide();
+
+        $("html").removeClass("CMS_PF_dialog_open");
+    }
+
+})();
